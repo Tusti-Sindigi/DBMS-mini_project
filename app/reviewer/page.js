@@ -173,6 +173,9 @@ export default function ReviewerQueuePage() {
                       >
                         {f.flag_status}
                       </span>
+                      {f.flag_status === 'Open' && (
+                        <span className="badge badge-info">Assigned to You</span>
+                      )}
                     </div>
 
                     <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>

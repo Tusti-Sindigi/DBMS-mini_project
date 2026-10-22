@@ -46,6 +46,24 @@ export async function GET(request, { params }) {
     return NextResponse.json({ error: 'Access denied' }, { status: 403 });
   }
 
+  // Reviewers can only access contracts containing flags assigned to them (Rubric #12: access control)
+  if (user.role === 'Reviewer') {
+    const reviewerCheck = await query(
+      `SELECT 1 FROM flags f
+       JOIN clauses cl ON cl.id = f.clause_id
+       WHERE cl.contract_id = $1 AND f.reviewer_id = $2
+       LIMIT 1`,
+      [contractId, user.id]
+    );
+
+    if (reviewerCheck.rows.length === 0) {
+      return NextResponse.json(
+        { error: 'Access denied. You do not have any assigned review tasks for this contract.' },
+        { status: 403 }
+      );
+    }
+  }
+
   // Fetch clauses with flags and risk info
   // Complex multi-table JOIN + correlated subquery (Rubric #7)
   const clausesResult = await query(

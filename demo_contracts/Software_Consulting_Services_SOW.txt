@@ -1,0 +1,11 @@
+1. Services. Consultant agrees to provide software engineering and architectural consulting services according to agreed written statement of work.
+
+2. Mutual Termination. Either party may terminate this agreement upon thirty (30) days prior written notice, or immediately if either party commits a material breach and fails to cure within fifteen (15) days of written notice.
+
+3. Clear Invoicing and Payment. Invoices will be submitted bi-weekly for verified hours completed. Client shall pay verified invoices within thirty (30) days of receipt (Net-30).
+
+4. Mutual Limitation of Liability. In no event shall either party be liable for special, indirect, or incidental damages. Total liability of either party shall be strictly capped at the aggregate amount paid by Client during the preceding six months.
+
+5. Mutual Intellectual Property. Client retains full ownership of project deliverables upon full payment, and Consultant retains ownership of pre-existing background tools and libraries.
+
+6. Non-Solicitation. Neither party shall directly recruit the other party's staff during the project term and for one year thereafter.

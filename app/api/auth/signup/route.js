@@ -49,6 +49,21 @@ export async function POST(request) {
       );
     }
 
+    // Role Escalation Protection: Public signup is strictly for Clients
+    // Staff accounts (Reviewer / LegalAdmin) must be provisioned by an existing LegalAdmin
+    if (role !== 'Client') {
+      const adminCheck = await query("SELECT id FROM users WHERE role = 'LegalAdmin' LIMIT 1");
+      if (adminCheck.rows.length > 0) {
+        return NextResponse.json(
+          {
+            error:
+              'Public registration is restricted to Client accounts. Reviewer and Legal Admin accounts must be provisioned by a Legal Admin.',
+          },
+          { status: 403 }
+        );
+      }
+    }
+
     // Check if user already exists
     const existing = await query('SELECT id FROM users WHERE name = $1', [name.trim()]);
     if (existing.rows.length > 0) {

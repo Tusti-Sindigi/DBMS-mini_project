@@ -335,8 +335,8 @@ export default function ContractDetailPage() {
             const canReview =
               isFlagged &&
               cl.flag_status === 'Open' &&
-              (user?.role === 'LegalAdmin' ||
-                (user?.role === 'Reviewer' && String(cl.reviewer_id) === String(user?.id)));
+              user?.role === 'Reviewer' &&
+              String(cl.reviewer_id) === String(user?.id);
 
             return (
               <div
@@ -518,6 +518,7 @@ export default function ContractDetailPage() {
                       {/* Show message if assigned reviewer is someone else */}
                       {user?.role === 'Reviewer' &&
                         cl.flag_status === 'Open' &&
+                        cl.reviewer_id &&
                         String(cl.reviewer_id) !== String(user?.id) && (
                           <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
                             Assigned to {cl.reviewer_name || 'another reviewer'}. Only assigned reviewers or Legal Admin can adjudicate.

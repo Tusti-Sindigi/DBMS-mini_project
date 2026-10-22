@@ -89,20 +89,26 @@ export default function SignupPage() {
 
           <div className="form-group">
             <label className="form-label" htmlFor="signup-role">
-              Role
+              Account Type
             </label>
-            <select
-              id="signup-role"
-              className="form-select"
-              value={role}
-              onChange={(e) => setRole(e.target.value)}
+            <div
+              style={{
+                padding: '0.75rem 1rem',
+                borderRadius: 'var(--radius)',
+                background: 'rgba(99, 102, 241, 0.1)',
+                border: '1px solid rgba(99, 102, 241, 0.25)',
+                color: 'var(--text-primary)',
+                fontSize: '0.9rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+              }}
             >
-              <option value="Client">Client — Upload and view contracts</option>
-              <option value="Reviewer">Reviewer — Review flagged clauses</option>
-              <option value="LegalAdmin">Legal Admin — Full access and oversight</option>
-            </select>
-            <span className="form-hint">
-              This determines what you can access in the system.
+              <span>👤</span>
+              <strong>Client Account</strong> (Upload & monitor contracts)
+            </div>
+            <span className="form-hint" style={{ marginTop: '0.35rem', display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+              Public registration creates Client accounts. Reviewer & Legal Admin accounts are provisioned internally by your Legal Administrator.
             </span>
           </div>
 

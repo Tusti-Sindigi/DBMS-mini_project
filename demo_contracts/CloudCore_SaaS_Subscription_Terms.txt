@@ -1,0 +1,11 @@
+1. Scope of Subscription. CloudCore Systems ("Provider") grants Subscriber access to its cloud analytics platform subject to the terms of this Subscription Agreement.
+
+2. Auto-Renewal and Lock-in. This agreement automatically renews for successive three-year terms unless the customer gives notice at least 180 days before expiry, and failure to provide such notice commits Subscriber to the full extended period.
+
+3. Price Escalation and Unilateral Charges. Additional charges may be imposed from time to time at rates determined by the supplier, and the provider may adjust its fees whenever it considers an adjustment appropriate, without advance notice.
+
+4. Disputed Invoices. Any disputed amount must still be paid immediately, and the supplier alone decides whether a dispute is valid.
+
+5. Immediate Suspension. The provider may suspend or end the services immediately without giving the customer an opportunity to cure a breach, and all customer fees already paid are non-refundable.
+
+6. Confidential Information. Each party agrees to treat proprietary business information shared under this contract as confidential.

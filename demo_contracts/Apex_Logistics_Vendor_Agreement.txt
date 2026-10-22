@@ -1,0 +1,11 @@
+1. Engagement and Term. This Vendor Agreement is entered into between Acme Corp ("Client") and Apex Logistics LLC ("Vendor") for warehouse management and dispatch services.
+
+2. Unilateral Termination. Vendor reserves the right to terminate this Agreement at any time, for any reason or no reason whatsoever, without notice to Client, and without incurring any liability or refund obligation.
+
+3. Unlimited Liability. Client agrees that Vendor's liability shall be completely unlimited and shall encompass all direct, indirect, special, incidental, punitive, and consequential losses or lost revenues arising out of or related to this agreement.
+
+4. One-Sided Indemnification. Client shall indemnify, defend, and hold harmless Vendor and its affiliates from and against every claim, loss, expense, or damage, whether caused by Vendor's own acts, omissions, or negligence.
+
+5. Automatic Renewal. This Agreement shall automatically renew for successive periods of three (3) years unless Client delivers written notice of termination by certified mail exactly 180 days prior to the expiration date.
+
+6. Governing Law. This agreement shall be governed by the laws of the State of New York.
