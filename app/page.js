@@ -8,7 +8,7 @@ import Link from 'next/link';
  */
 export default function HomePage() {
   return (
-    <div className="landing-page" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <div className="landing-page" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
       {/* Top Navigation */}
       <header
         style={{

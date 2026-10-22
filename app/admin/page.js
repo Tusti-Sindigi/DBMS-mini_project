@@ -8,10 +8,18 @@ export default function AdminDashboardPage() {
   const [data, setData] = useState(null);
   const [openFlags, setOpenFlags] = useState([]);
   const [reviewers, setReviewers] = useState([]);
+  const [staffList, setStaffList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [successMsg, setSuccessMsg] = useState(null);
   const [assigningId, setAssigningId] = useState(null);
+  const [autoAssigning, setAutoAssigning] = useState(false);
+
+  // Staff provisioning form state
+  const [newStaffName, setNewStaffName] = useState('');
+  const [newStaffPassword, setNewStaffPassword] = useState('');
+  const [newStaffRole, setNewStaffRole] = useState('Reviewer');
+  const [creatingStaff, setCreatingStaff] = useState(false);
 
   useEffect(() => {
     loadAdminData();
@@ -20,21 +28,24 @@ export default function AdminDashboardPage() {
   async function loadAdminData() {
     try {
       setLoading(true);
-      const [adminRes, flagsRes, reviewersRes] = await Promise.all([
+      const [adminRes, flagsRes, reviewersRes, staffRes] = await Promise.all([
         fetch('/api/admin/dashboard'),
         fetch('/api/flags?status=Open'),
         fetch('/api/users/reviewers'),
+        fetch('/api/admin/users'),
       ]);
 
       const aData = await adminRes.json();
       const fData = await flagsRes.json();
       const rData = await reviewersRes.json();
+      const sData = await staffRes.json();
 
       if (aData.error) throw new Error(aData.error);
 
       setData(aData);
       if (fData.flags) setOpenFlags(fData.flags);
       if (rData.reviewers) setReviewers(rData.reviewers);
+      if (sData.staff) setStaffList(sData.staff);
     } catch (err) {
       console.error('Failed to load admin dashboard:', err);
       setError(err.message || 'Failed to load admin data');
@@ -71,10 +82,79 @@ export default function AdminDashboardPage() {
             : f
         )
       );
+
+      // Refresh staff counts
+      const staffRes = await fetch('/api/admin/users');
+      const sData = await staffRes.json();
+      if (sData.staff) setStaffList(sData.staff);
     } catch (err) {
       setError(err.message);
     } finally {
       setAssigningId(null);
+    }
+  }
+
+  async function handleAutoAssign() {
+    try {
+      setAutoAssigning(true);
+      setError(null);
+      setSuccessMsg(null);
+
+      const res = await fetch('/api/admin/auto-assign', {
+        method: 'POST',
+      });
+
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || 'Auto-assignment failed');
+
+      setSuccessMsg(result.message);
+      await loadAdminData();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setAutoAssigning(false);
+    }
+  }
+
+  async function handleCreateStaff(e) {
+    e.preventDefault();
+    if (!newStaffName.trim() || !newStaffPassword) return;
+
+    try {
+      setCreatingStaff(true);
+      setError(null);
+      setSuccessMsg(null);
+
+      const res = await fetch('/api/admin/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newStaffName.trim(),
+          password: newStaffPassword,
+          role: newStaffRole,
+        }),
+      });
+
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || 'Failed to provision staff account');
+
+      setSuccessMsg(result.message);
+      setNewStaffName('');
+      setNewStaffPassword('');
+
+      // Reload staff list and reviewers dropdown
+      const [reviewersRes, staffRes] = await Promise.all([
+        fetch('/api/users/reviewers'),
+        fetch('/api/admin/users'),
+      ]);
+      const rData = await reviewersRes.json();
+      const sData = await staffRes.json();
+      if (rData.reviewers) setReviewers(rData.reviewers);
+      if (sData.staff) setStaffList(sData.staff);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setCreatingStaff(false);
     }
   }
 
@@ -90,6 +170,8 @@ export default function AdminDashboardPage() {
     );
   }
 
+  const unassignedCount = openFlags.filter((f) => !f.reviewer_id).length;
+
   return (
     <>
       <Navbar />
@@ -102,7 +184,7 @@ export default function AdminDashboardPage() {
               <span className="badge badge-primary">Rubric #8: CTE View & Stored Procedures</span>
             </div>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
-              System-wide risk monitoring, reviewer workload allocation, and executive client risk analytics.
+              System-wide risk monitoring, reviewer workload allocation, staff provisioning, and executive client risk analytics.
             </p>
           </div>
 
@@ -259,19 +341,32 @@ export default function AdminDashboardPage() {
 
         {/* Section 2: Open Flags Management & Reviewer Assignment */}
         <div className="card" style={{ padding: '1.75rem', marginBottom: '2.5rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
             <div>
-              <h2 style={{ fontSize: '1.25rem', fontWeight: 700 }}>Open Flags Reviewer Assignment</h2>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <h2 style={{ fontSize: '1.25rem', fontWeight: 700 }}>Open Flags Reviewer Assignment</h2>
+                <span className="badge badge-warning">{unassignedCount} Unassigned</span>
+              </div>
               <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '0.25rem' }}>
                 Allocate open triage flags to designated reviewers.
               </p>
             </div>
-            <span className="badge badge-warning">{openFlags.length} Pending Resolution</span>
+
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button
+                type="button"
+                className="btn btn-sm btn-primary"
+                onClick={handleAutoAssign}
+                disabled={autoAssigning || unassignedCount === 0 || reviewers.length === 0}
+              >
+                {autoAssigning ? 'Distributing...' : '⚡ Auto-Assign Open Flags (Round-Robin)'}
+              </button>
+            </div>
           </div>
 
           {openFlags.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: 'var(--text-secondary)' }}>
-              🎉 All risk flags have been resolved or assigned.
+              🎉 All risk flags have been resolved.
             </div>
           ) : (
             <div className="table-responsive">
@@ -310,7 +405,7 @@ export default function AdminDashboardPage() {
                       </td>
                       <td>
                         <span style={{ color: f.reviewer_name ? 'var(--text-accent)' : 'var(--text-muted)' }}>
-                          {f.reviewer_name || 'Unassigned'}
+                          {f.reviewer_name ? `Assigned to ${f.reviewer_name}` : 'Unassigned'}
                         </span>
                       </td>
                       <td>
@@ -337,7 +432,118 @@ export default function AdminDashboardPage() {
           )}
         </div>
 
-        {/* Section 3: Recent Review History Audit Trail */}
+        {/* Section 3: Staff Account Provisioning (RBAC Control) */}
+        <div className="card" style={{ padding: '1.75rem', marginBottom: '2.5rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <h2 style={{ fontSize: '1.25rem', fontWeight: 700 }}>Staff Account Provisioning</h2>
+                <span className="badge badge-primary">Rubric #12: RBAC</span>
+              </div>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '0.25rem' }}>
+                Secure staff account management. Public registration is restricted to Clients; Legal Admins provision internal Reviewers and Admins here.
+              </p>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '2rem' }}>
+            {/* Create Staff Form */}
+            <form onSubmit={handleCreateStaff} style={{ background: 'rgba(22, 24, 48, 0.4)', padding: '1.5rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+              <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1rem', color: '#fff' }}>+ Provision New Staff Account</h3>
+
+              <div className="form-group" style={{ marginBottom: '1rem' }}>
+                <label className="form-label" style={{ fontSize: '0.85rem' }}>Staff Username</label>
+                <input
+                  type="text"
+                  className="input"
+                  placeholder="e.g. tina_reviewer"
+                  value={newStaffName}
+                  onChange={(e) => setNewStaffName(e.target.value)}
+                  required
+                  minLength={2}
+                  style={{ fontSize: '0.85rem' }}
+                />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: '1rem' }}>
+                <label className="form-label" style={{ fontSize: '0.85rem' }}>Temporary Password</label>
+                <input
+                  type="password"
+                  className="input"
+                  placeholder="Minimum 6 characters"
+                  value={newStaffPassword}
+                  onChange={(e) => setNewStaffPassword(e.target.value)}
+                  required
+                  minLength={6}
+                  style={{ fontSize: '0.85rem' }}
+                />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: '1.25rem' }}>
+                <label className="form-label" style={{ fontSize: '0.85rem' }}>Assigned Staff Role</label>
+                <select
+                  className="input"
+                  value={newStaffRole}
+                  onChange={(e) => setNewStaffRole(e.target.value)}
+                  style={{ fontSize: '0.85rem' }}
+                >
+                  <option value="Reviewer">Reviewer (Adjudicate assigned flags)</option>
+                  <option value="LegalAdmin">LegalAdmin (Full management & assignment)</option>
+                </select>
+              </div>
+
+              <button
+                type="submit"
+                className="btn btn-primary btn-sm"
+                disabled={creatingStaff || !newStaffName.trim() || !newStaffPassword}
+                style={{ width: '100%' }}
+              >
+                {creatingStaff ? 'Provisioning...' : 'Provision Staff Account'}
+              </button>
+            </form>
+
+            {/* Existing Staff Table */}
+            <div>
+              <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1rem', color: '#fff' }}>Active Staff Directory ({staffList.length})</h3>
+              <div className="table-responsive">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Role</th>
+                      <th>Active Queue</th>
+                      <th>Reviews Completed</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {staffList.map((s) => (
+                      <tr key={s.id}>
+                        <td style={{ fontWeight: 600, color: '#fff' }}>{s.name}</td>
+                        <td>
+                          <span className={`badge ${s.role === 'LegalAdmin' ? 'badge-primary' : 'badge-info'}`}>
+                            {s.role}
+                          </span>
+                        </td>
+                        <td>
+                          {s.role === 'Reviewer' ? (
+                            <span style={{ color: s.open_queue_count > 0 ? 'var(--warning)' : 'var(--text-muted)' }}>
+                              {s.open_queue_count} pending
+                            </span>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
+                        <td>{s.total_reviews_completed || 0}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Section 4: Recent Review History Audit Trail */}
         <div className="card" style={{ padding: '1.75rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
             <div>

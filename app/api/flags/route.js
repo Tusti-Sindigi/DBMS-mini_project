@@ -63,6 +63,7 @@ export async function GET(request) {
 
   // Role-based data scoping (Rubric #12)
   if (user.role === 'Reviewer') {
+    // Reviewer strictly sees flags assigned to them by a Legal Admin
     sql += ` AND f.reviewer_id = $${paramIndex}`;
     params.push(user.id);
     paramIndex++;

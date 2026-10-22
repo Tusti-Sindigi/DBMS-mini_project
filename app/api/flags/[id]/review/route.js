@@ -24,9 +24,15 @@ import { requireAuth } from '@/lib/auth';
 const VALID_ACTIONS = ['Cleared', 'Escalated'];
 
 export async function POST(request, { params }) {
-  // Server-side auth: only Reviewer or LegalAdmin can review (Rubric #12)
-  const auth = await requireAuth('Reviewer', 'LegalAdmin');
+  // Server-side auth: strictly enforce Reviewer role for adjudication (Rubric #12: Separation of Duties)
+  const auth = await requireAuth('Reviewer');
   if (auth.error) {
+    if (auth.status === 403) {
+      return NextResponse.json(
+        { error: 'Separation of Duties: Review decisions must be executed by an assigned Reviewer. As Legal Admin, allocate flags using the assignment tools.' },
+        { status: 403 }
+      );
+    }
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
@@ -67,20 +73,17 @@ export async function POST(request, { params }) {
     }
 
     // Check reviewer assignment (Rubric #12: authorization)
-    // LegalAdmin can review any flag; Reviewer must be assigned
-    if (user.role === 'Reviewer') {
-      if (!flag.reviewer_id) {
-        return NextResponse.json(
-          { error: 'This flag has not been assigned to any reviewer yet.' },
-          { status: 403 }
-        );
-      }
-      if (String(flag.reviewer_id) !== String(user.id)) {
-        return NextResponse.json(
-          { error: 'You are not assigned to review this flag.' },
-          { status: 403 }
-        );
-      }
+    if (!flag.reviewer_id) {
+      return NextResponse.json(
+        { error: 'This flag has not been assigned to a reviewer yet. A Legal Admin must assign it before review.' },
+        { status: 403 }
+      );
+    }
+    if (String(flag.reviewer_id) !== String(user.id)) {
+      return NextResponse.json(
+        { error: 'You are not assigned to review this flag.' },
+        { status: 403 }
+      );
     }
 
     // ═══════════════════════════════════════════════════════
