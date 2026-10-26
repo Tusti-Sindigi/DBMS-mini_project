@@ -82,10 +82,26 @@ export async function POST(request) {
   const { user } = auth;
 
   try {
-    const formData = await request.formData();
-    const file = formData.get('file');
-    const contractText = formData.get('text');
-    const fileName = formData.get('fileName') || 'Untitled';
+    let formData;
+    try {
+      formData = await request.formData();
+    } catch {
+      return NextResponse.json({ error: 'Upload must use multipart form data.' }, { status: 400 });
+    }
+
+    const fileEntry = formData.get('file');
+    const file = fileEntry && typeof fileEntry === 'object'
+      && typeof fileEntry.arrayBuffer === 'function'
+      ? fileEntry
+      : null;
+    if (fileEntry !== null && !file) {
+      return NextResponse.json({ error: 'The uploaded file is invalid.' }, { status: 400 });
+    }
+
+    const textEntry = formData.get('text');
+    const contractText = typeof textEntry === 'string' ? textEntry : '';
+    const submittedName = formData.get('fileName');
+    const requestedFileName = typeof submittedName === 'string' ? submittedName : '';
 
     let text = '';
 
@@ -98,10 +114,20 @@ export async function POST(request) {
         );
       }
 
+      const lowerFileName = String(file.name || '').toLowerCase();
+      const isPdf = lowerFileName.endsWith('.pdf') || file.type === 'application/pdf';
+      const isPlainText = lowerFileName.endsWith('.txt') || file.type === 'text/plain';
+      if (!isPdf && !isPlainText) {
+        return NextResponse.json(
+          { error: 'Only PDF and plain-text .txt files are supported.' },
+          { status: 415 }
+        );
+      }
+
       const bytes = await file.arrayBuffer();
       const buffer = Buffer.from(bytes);
 
-      if (file.type === 'application/pdf' || file.name?.endsWith('.pdf')) {
+      if (isPdf) {
         // PDF text extraction (Rubric #10, #11)
         try {
           const pdfParse = (await import('pdf-parse')).default;
@@ -117,7 +143,9 @@ export async function POST(request) {
       } else {
         text = buffer.toString('utf-8');
       }
-    } else if (contractText && typeof contractText === 'string') {
+    } else if (file) {
+      return NextResponse.json({ error: 'The selected file is empty.' }, { status: 400 });
+    } else if (contractText.trim()) {
       text = contractText;
     }
 
@@ -127,39 +155,59 @@ export async function POST(request) {
         { status: 400 }
       );
     }
+    if (text.length > 2_000_000) {
+      return NextResponse.json({ error: 'Extracted contract text exceeds the 2 million character processing limit.' }, { status: 413 });
+    }
+
+    const rawFileName = requestedFileName || file?.name || 'Untitled';
+    const fileName = rawFileName.trim().replace(/[\r\n\0]/g, ' ').slice(0, 255) || 'Untitled';
 
     // Call Track A's clause segmentation + embedding service
     // (Rubric #11: Backend/API integration)
     let clauses;
+    let embeddingData;
     try {
       const embeddingRes = await fetch(`${EMBEDDING_SERVICE_URL}/process-contract`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text }),
+        signal: AbortSignal.timeout(120_000),
       });
 
       if (!embeddingRes.ok) {
-        const errBody = await embeddingRes.json().catch(() => ({}));
-        throw new Error(errBody.detail || `Embedding service returned ${embeddingRes.status}`);
+        throw new Error(`Embedding service returned ${embeddingRes.status}`);
       }
 
-      const embeddingData = await embeddingRes.json();
+      embeddingData = await embeddingRes.json();
       clauses = embeddingData.clauses;
     } catch (serviceError) {
       console.error('Embedding service error:', serviceError);
       return NextResponse.json(
         {
           error: 'Failed to process contract text. Make sure the embedding service is running.',
-          detail: serviceError.message,
         },
         { status: 502 }
       );
     }
 
-    if (!clauses || clauses.length === 0) {
+    if (!Array.isArray(clauses) || clauses.length === 0) {
       return NextResponse.json(
         { error: 'No clauses were extracted from the contract text.' },
         { status: 422 }
+      );
+    }
+    if (!embeddingData || embeddingData.dimension !== 384 || clauses.length > 1000 || clauses.some((clause) => (
+      typeof clause.clause_number !== 'string'
+      || !clause.clause_number.trim()
+      || typeof clause.clause_text !== 'string'
+      || !clause.clause_text.trim()
+      || !Array.isArray(clause.embedding)
+      || clause.embedding.length !== 384
+      || clause.embedding.some((value) => !Number.isFinite(value))
+    ))) {
+      return NextResponse.json(
+        { error: 'The embedding service returned invalid clause data. No contract was saved.' },
+        { status: 502 }
       );
     }
 

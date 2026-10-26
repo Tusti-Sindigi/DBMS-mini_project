@@ -119,16 +119,17 @@ export default function ContractDetailPage() {
       }
 
       const assignedRev = reviewers.find((r) => String(r.id) === String(reviewerId));
+      const nextReviewerId = reviewerId || null;
 
       setClauses((prev) =>
         prev.map((c) =>
           c.flag_id === flagId
-            ? { ...c, reviewer_id: reviewerId, reviewer_name: assignedRev?.name }
+            ? { ...c, reviewer_id: nextReviewerId, reviewer_name: assignedRev?.name || null }
             : c
         )
       );
 
-      setActionSuccess(`Assigned flag to ${assignedRev?.name || 'reviewer'}.`);
+      setActionSuccess(assignedRev ? `Assigned flag to ${assignedRev.name}.` : 'Reviewer assignment removed.');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -148,6 +149,10 @@ export default function ContractDetailPage() {
     );
   }
 
+  const isReviewer = user?.role === 'Reviewer';
+  const contractsHref = isReviewer ? '/reviewer' : '/contracts';
+  const contractsLabel = isReviewer ? 'Review Queue' : 'Contracts';
+
   if (error && !contract) {
     return (
       <>
@@ -155,8 +160,8 @@ export default function ContractDetailPage() {
         <div className="container" style={{ padding: '3rem 1rem', maxWidth: '800px' }}>
           <div className="alert alert-danger">{error}</div>
           <div style={{ marginTop: '1.5rem' }}>
-            <Link href="/contracts" className="btn btn-secondary">
-              ← Return to Contracts
+            <Link href={contractsHref} className="btn btn-secondary">
+              ← Return to {contractsLabel}
             </Link>
           </div>
         </div>
@@ -167,7 +172,6 @@ export default function ContractDetailPage() {
   const flaggedClauses = clauses.filter((c) => c.flag_id);
   const openFlags = clauses.filter((c) => c.flag_id && c.flag_status === 'Open');
   const maxRiskScore = Math.max(...clauses.map((c) => parseFloat(c.risk_score) || 0), 0);
-
   const filteredClauses = clauses.filter((c) => {
     if (selectedFilter === 'FLAGGED') return !!c.flag_id;
     if (selectedFilter === 'CLEAN') return !c.flag_id;
@@ -180,8 +184,8 @@ export default function ContractDetailPage() {
       <div className="container" style={{ padding: '2.5rem 1rem' }}>
         {/* Navigation Breadcrumb */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.5rem', fontSize: '0.85rem' }}>
-          <Link href="/contracts" style={{ color: 'var(--text-muted)' }}>
-            Contracts
+          <Link href={contractsHref} style={{ color: 'var(--text-muted)' }}>
+            {contractsLabel}
           </Link>
           <span style={{ color: 'var(--text-muted)' }}>/</span>
           <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{contract.fileName}</span>
@@ -213,8 +217,8 @@ export default function ContractDetailPage() {
             </div>
 
             <div style={{ display: 'flex', gap: '0.75rem' }}>
-              <Link href="/contracts" className="btn btn-secondary btn-sm">
-                ← All Contracts
+              <Link href={contractsHref} className="btn btn-secondary btn-sm">
+                ← {isReviewer ? 'Review Queue' : 'All Contracts'}
               </Link>
               {user?.role === 'Client' && (
                 <Link href="/contracts/upload" className="btn btn-primary btn-sm">
@@ -235,28 +239,28 @@ export default function ContractDetailPage() {
             }}
           >
             <div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>TOTAL CLAUSES</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>{isReviewer ? 'ASSIGNED REVIEW ITEMS' : 'TOTAL CLAUSES'}</div>
               <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#fff', marginTop: '0.25rem' }}>
                 {clauses.length}
               </div>
             </div>
 
-            <div>
+            {!isReviewer && <div>
               <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>FLAGGED CLAUSES</div>
               <div style={{ fontSize: '1.5rem', fontWeight: 800, color: flaggedClauses.length > 0 ? 'var(--danger)' : 'var(--success)', marginTop: '0.25rem' }}>
                 {flaggedClauses.length}
               </div>
-            </div>
+            </div>}
 
             <div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>UNRESOLVED (OPEN)</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>{isReviewer ? 'OPEN ASSIGNED FLAGS' : 'UNRESOLVED (OPEN)'}</div>
               <div style={{ fontSize: '1.5rem', fontWeight: 800, color: openFlags.length > 0 ? 'var(--warning)' : 'var(--success)', marginTop: '0.25rem' }}>
                 {openFlags.length}
               </div>
             </div>
 
             <div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>PEAK RISK SCORE</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>{isReviewer ? 'PEAK ASSIGNED RISK SCORE' : 'PEAK RISK SCORE'}</div>
               <div style={{ fontSize: '1.5rem', fontWeight: 800, color: maxRiskScore > 60 ? 'var(--danger)' : maxRiskScore > 30 ? 'var(--warning)' : 'var(--success)', marginTop: '0.25rem' }}>
                 {maxRiskScore > 0 ? `${maxRiskScore.toFixed(1)} / 100` : 'None'}
               </div>
@@ -281,11 +285,13 @@ export default function ContractDetailPage() {
           <div>
             <h2 style={{ fontSize: '1.35rem', fontWeight: 700 }}>Clause Breakdown & Risk Triage</h2>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
-              Individual clauses extracted from contract. Color-coded by pgvector similarity & severity.
+              {isReviewer
+                ? 'Only clauses with flags assigned to you are shown. Other contract clauses are outside your review queue.'
+                : 'Individual clauses extracted from contract. Color-coded by pgvector similarity & severity.'}
             </p>
           </div>
 
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
+          {!isReviewer && <div style={{ display: 'flex', gap: '0.5rem' }}>
             <button
               className={`btn btn-sm ${selectedFilter === 'ALL' ? 'btn-primary' : 'btn-ghost'}`}
               onClick={() => setSelectedFilter('ALL')}
@@ -304,7 +310,7 @@ export default function ContractDetailPage() {
             >
               Clean Only ({clauses.length - flaggedClauses.length})
             </button>
-          </div>
+          </div>}
         </div>
 
         {/* Clause Cards List */}
@@ -328,7 +334,7 @@ export default function ContractDetailPage() {
                 statusBadge = <span className="badge badge-success">Cleared by Reviewer</span>;
               } else if (cl.flag_status === 'Escalated') {
                 cardBorder = 'rgba(245, 158, 11, 0.5)';
-                statusBadge = <span className="badge badge-warning">Escalated to Senior Counsel</span>;
+                statusBadge = <span className="badge badge-warning">Escalated for Further Review</span>;
               }
             }
 
@@ -483,7 +489,7 @@ export default function ContractDetailPage() {
                             onChange={(e) => handleAssignReviewer(cl.flag_id, e.target.value)}
                             disabled={processingFlagId === cl.flag_id}
                           >
-                            <option value="">-- Select Reviewer --</option>
+                            <option value="">{cl.reviewer_id ? '-- Unassign Reviewer --' : '-- Select Reviewer --'}</option>
                             {reviewers.map((r) => (
                               <option key={r.id} value={r.id}>
                                 {r.name} ({r.active_queue_count} pending)
@@ -502,7 +508,7 @@ export default function ContractDetailPage() {
                             onClick={() => handleReviewAction(cl.flag_id, 'Cleared')}
                             disabled={processingFlagId === cl.flag_id}
                           >
-                            ✓ Clear (Approve Clause)
+                            ✓ Clear Flag
                           </button>
                           <button
                             type="button"
@@ -510,7 +516,7 @@ export default function ContractDetailPage() {
                             onClick={() => handleReviewAction(cl.flag_id, 'Escalated')}
                             disabled={processingFlagId === cl.flag_id}
                           >
-                            ⚠️ Escalate to Senior Counsel
+                            ⚠️ Escalate for Further Review
                           </button>
                         </div>
                       )}
@@ -521,7 +527,7 @@ export default function ContractDetailPage() {
                         cl.reviewer_id &&
                         String(cl.reviewer_id) !== String(user?.id) && (
                           <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                            Assigned to {cl.reviewer_name || 'another reviewer'}. Only assigned reviewers or Legal Admin can adjudicate.
+                            Assigned to {cl.reviewer_name || 'another reviewer'}. Only the assigned Reviewer can adjudicate.
                           </div>
                         )}
 

@@ -47,12 +47,14 @@ cache/
 # Node.js and Next.js
 node_modules/
 .next/
+node-compile-cache/
 out/
 coverage/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+.pnpm-store/
 .turbo/
 .vercel/
 

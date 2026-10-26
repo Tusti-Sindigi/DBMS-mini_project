@@ -68,6 +68,8 @@ A dual-database (Relational SQL + pgvector semantic vector search) legal triage 
 
 ## Setup & Execution Instructions
 
+For the complete Windows requirements list and installation walkthrough, see `INSTALLATION_REQUIREMENTS.txt`.
+
 ### Prerequisites
 - **Node.js** v18+ and `npm`
 - **Python** 3.10+ and `pip`
@@ -84,8 +86,11 @@ Edit `.env` with your PostgreSQL database credentials:
 ```env
 DATABASE_URL=postgresql://postgres:password@localhost:5432/clauseguard
 EMBEDDING_SERVICE_URL=http://127.0.0.1:8001
-JWT_SECRET=super-secure-dev-secret-key-32-chars-min
+JWT_SECRET=<a random secret of at least 32 characters>
+INITIAL_ADMIN_SETUP_TOKEN=<a separate random one-time setup token>
 ```
+
+Keep both values private. Public signup creates Client accounts only. To create the first Legal Admin, open `/signup`, select **Set up the initial Legal Admin account**, and enter the setup token. This option is available only until the first Legal Admin is created. After that, the Legal Admin provisions Reviewer and additional Legal Admin accounts from the dashboard.
 
 ### Step 2: Initialize Database
 
@@ -121,7 +126,7 @@ In your main terminal:
 
 ```powershell
 # Install Node.js dependencies
-npm install
+npm ci
 
 # Run the development server
 npm run dev
@@ -159,9 +164,9 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 - View the **Reviewer Queue** (`/reviewer`):
   - Lists open flags assigned to this reviewer.
   - Inspect the clause text, matched pattern, cosine similarity %, and composite risk score.
-  - Click **Clear (Approve)** or **Escalate to Senior Counsel**:
+  - Click **Clear Flag** or **Escalate for Further Review**. These actions record the flag decision; they do not approve or reject the entire contract.
     - Executes an atomic PostgreSQL `TRANSACTION`:
-      1. `UPDATE flags SET status = 'Cleared'/'Escalated', reviewer_id = ... WHERE id = ... AND status = 'Open'`
+      1. Lock and verify the open flag is assigned to the signed-in reviewer, then update its status.
       2. `INSERT INTO review_history (flag_id, action, reviewer_id) VALUES (...)`
     - Guarantees ACID consistency and logs an immutable audit trail.
 
@@ -170,7 +175,8 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 ## API Documentation
 
 ### Authentication Routes
-- `POST /api/auth/signup`: Create a new user (`name`, `password`, `role`). Passwords hashed with bcrypt.
+- `GET /api/auth/signup`: Reports whether first Legal Admin setup is available.
+- `POST /api/auth/signup`: Public signup creates a Client. First Legal Admin setup requires the configured bootstrap token. Passwords are hashed with bcrypt.
 - `POST /api/auth/login`: Authenticate user; returns HTTP-only JWT cookie.
 - `POST /api/auth/logout`: Clears session cookie.
 - `GET /api/auth/me`: Returns current authenticated session (`id`, `name`, `role`).
@@ -183,7 +189,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 ### Flag & Review Routes
 - `GET /api/flags`: List flags filtered by status and role.
 - `PATCH /api/flags/[id]`: Assign a reviewer to a flag (`LegalAdmin` only).
-- `POST /api/flags/[id]/review`: Execute review action (`Cleared` or `Escalated`) inside an atomic database `TRANSACTION`.
+- `POST /api/flags/[id]/review`: Reviewer-only action for an assigned open flag (`Cleared` or `Escalated`), recorded with review history in an atomic database `TRANSACTION`.
 
 ### Admin & Risk Library Routes
 - `GET /api/admin/dashboard`: Queries `unresolved_flags_by_client` CTE view and aggregates system stats.

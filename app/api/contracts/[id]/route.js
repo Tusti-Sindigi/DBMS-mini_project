@@ -24,6 +24,9 @@ export async function GET(request, { params }) {
   const { user } = auth;
   const resolvedParams = await params;
   const contractId = resolvedParams.id;
+  if (!/^[1-9]\d*$/.test(contractId)) {
+    return NextResponse.json({ error: 'Contract not found' }, { status: 404 });
+  }
 
   // Fetch contract with ownership check (Rubric #12: data scoping)
   const contractResult = await query(
@@ -64,6 +67,10 @@ export async function GET(request, { params }) {
     }
   }
 
+  // Reviewers receive only clauses attached to their own assigned flags.
+  const reviewerClauseScope = user.role === 'Reviewer' ? 'AND f.reviewer_id = $2' : '';
+  const clauseParams = user.role === 'Reviewer' ? [contractId, user.id] : [contractId];
+
   // Fetch clauses with flags and risk info
   // Complex multi-table JOIN + correlated subquery (Rubric #7)
   const clausesResult = await query(
@@ -93,8 +100,9 @@ export async function GET(request, { params }) {
      LEFT JOIN risk_library rl  ON rl.id = f.risk_library_id
      LEFT JOIN users ur         ON ur.id = f.reviewer_id
      WHERE cl.contract_id = $1
+       ${reviewerClauseScope}
      ORDER BY cl.clause_number`,
-    [contractId]
+    clauseParams
   );
 
   return NextResponse.json({

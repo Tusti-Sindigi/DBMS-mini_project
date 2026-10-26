@@ -40,7 +40,7 @@ export default function Navbar() {
     links.push({ href: '/contracts/upload', label: 'Upload' });
   }
 
-  if (user.role === 'Reviewer' || user.role === 'LegalAdmin') {
+  if (user.role === 'Reviewer') {
     links.push({ href: '/reviewer', label: 'Review Queue' });
   }
 
@@ -48,6 +48,10 @@ export default function Navbar() {
     links.push({ href: '/admin', label: 'Admin' });
     links.push({ href: '/admin/risk-library', label: 'Risk Library' });
   }
+
+  const activeLink = [...links]
+    .filter((link) => pathname === link.href || pathname.startsWith(`${link.href}/`))
+    .sort((a, b) => b.href.length - a.href.length)[0];
 
   return (
     <nav className="navbar">
@@ -61,7 +65,7 @@ export default function Navbar() {
           <a
             key={link.href}
             href={link.href}
-            className={`navbar-link${pathname === link.href || pathname.startsWith(link.href + '/') ? ' active' : ''}`}
+            className={`navbar-link${activeLink?.href === link.href ? ' active' : ''}`}
           >
             {link.label}
           </a>

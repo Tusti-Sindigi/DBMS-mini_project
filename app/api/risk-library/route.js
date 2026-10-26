@@ -19,7 +19,7 @@ const EMBEDDING_SERVICE_URL =
   process.env.EMBEDDING_SERVICE_URL || 'http://127.0.0.1:8001';
 
 export async function GET() {
-  const auth = await requireAuth('LegalAdmin', 'Reviewer', 'Client');
+  const auth = await requireAuth('LegalAdmin');
   if (auth.error) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -63,25 +63,39 @@ export async function POST(request) {
   }
 
   try {
-    const body = await request.json();
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Request body must be valid JSON.' }, { status: 400 });
+    }
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return NextResponse.json({ error: 'Request body must be a JSON object.' }, { status: 400 });
+    }
     const { clause_pattern_text, risk_category, severity_weight } = body;
 
-    if (!clause_pattern_text || !clause_pattern_text.trim()) {
+    if (typeof clause_pattern_text !== 'string' || !clause_pattern_text.trim()) {
       return NextResponse.json(
         { error: 'Pattern text is required' },
         { status: 400 }
       );
     }
+    if (clause_pattern_text.trim().length > 5000) {
+      return NextResponse.json({ error: 'Pattern text must be 5,000 characters or fewer.' }, { status: 400 });
+    }
 
-    if (!risk_category || !risk_category.trim()) {
+    if (typeof risk_category !== 'string' || !risk_category.trim()) {
       return NextResponse.json(
         { error: 'Risk category is required' },
         { status: 400 }
       );
     }
+    if (risk_category.trim().length > 100) {
+      return NextResponse.json({ error: 'Risk category must be 100 characters or fewer.' }, { status: 400 });
+    }
 
-    const severity = parseInt(severity_weight, 10);
-    if (isNaN(severity) || severity < 1 || severity > 5) {
+    const severity = Number(severity_weight);
+    if (!Number.isInteger(severity) || severity < 1 || severity > 5) {
       return NextResponse.json(
         { error: 'Severity weight must be an integer between 1 and 5' },
         { status: 400 }
@@ -95,6 +109,7 @@ export async function POST(request) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ texts: [clause_pattern_text.trim()] }),
+        signal: AbortSignal.timeout(30_000),
       });
 
       if (!embedRes.ok) {
@@ -102,7 +117,12 @@ export async function POST(request) {
       }
 
       const embedData = await embedRes.json();
-      embedding = embedData.embeddings[0];
+      embedding = embedData.embeddings?.[0];
+      if (embedData.dimension !== 384 || !Array.isArray(embedding)
+        || embedding.length !== 384
+        || embedding.some((value) => !Number.isFinite(value))) {
+        throw new Error('Embedding service returned an invalid vector.');
+      }
     } catch (embedError) {
       console.error('Embedding service failed:', embedError);
       return NextResponse.json(
@@ -150,14 +170,22 @@ export async function PATCH(request) {
   }
 
   try {
-    const body = await request.json();
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Request body must be valid JSON.' }, { status: 400 });
+    }
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return NextResponse.json({ error: 'Request body must be a JSON object.' }, { status: 400 });
+    }
 
     // 1. Update similarity threshold
     if (body.similarityThreshold !== undefined) {
-      const threshold = parseFloat(body.similarityThreshold);
-      if (isNaN(threshold) || threshold <= 0 || threshold > 1) {
+      const threshold = Number(body.similarityThreshold);
+      if (!Number.isFinite(threshold) || threshold <= 0 || threshold > 1) {
         return NextResponse.json(
-          { error: 'Similarity threshold must be between 0.01 and 1.0' },
+          { error: 'Similarity threshold must be greater than 0 and at most 1.0.' },
           { status: 400 }
         );
       }
@@ -175,12 +203,16 @@ export async function PATCH(request) {
 
     // 2. Update pattern severity
     if (body.patternId && body.severityWeight !== undefined) {
-      const severity = parseInt(body.severityWeight, 10);
-      if (isNaN(severity) || severity < 1 || severity > 5) {
+      const severity = Number(body.severityWeight);
+      if (!Number.isInteger(severity) || severity < 1 || severity > 5) {
         return NextResponse.json(
           { error: 'Severity must be between 1 and 5' },
           { status: 400 }
         );
+      }
+
+      if (!/^[1-9]\d*$/.test(String(body.patternId))) {
+        return NextResponse.json({ error: 'patternId must be a positive integer.' }, { status: 400 });
       }
 
       const updateRes = await query(

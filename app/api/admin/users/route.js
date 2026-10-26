@@ -50,7 +50,15 @@ export async function POST(request) {
   }
 
   try {
-    const body = await request.json();
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Request body must be valid JSON.' }, { status: 400 });
+    }
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return NextResponse.json({ error: 'Request body must be a JSON object.' }, { status: 400 });
+    }
     const { name, password, role } = body;
 
     if (!name || !password || !role) {
@@ -67,9 +75,9 @@ export async function POST(request) {
       );
     }
 
-    if (typeof password !== 'string' || password.length < 6) {
+    if (typeof password !== 'string' || password.length < 8) {
       return NextResponse.json(
-        { error: 'Password must be at least 6 characters' },
+        { error: 'Password must be at least 8 characters' },
         { status: 400 }
       );
     }
@@ -109,6 +117,9 @@ export async function POST(request) {
       { status: 201 }
     );
   } catch (error) {
+    if (error.code === '23505') {
+      return NextResponse.json({ error: 'A user with this username already exists.' }, { status: 409 });
+    }
     console.error('Error provisioning staff account:', error);
     return NextResponse.json({ error: 'Failed to provision staff account' }, { status: 500 });
   }
