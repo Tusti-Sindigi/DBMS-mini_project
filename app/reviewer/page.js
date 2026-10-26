@@ -83,8 +83,7 @@ export default function ReviewerQueuePage() {
               <span className="badge badge-info">{user?.role || 'Reviewer'}</span>
             </div>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
-              Adjudicate flagged contract clauses. Actions are executed inside atomic PostgreSQL transactions
-              and logged to <code>review_history</code> for regulatory auditability.
+              Review only flags assigned to you. Each decision is recorded in the review history.
             </p>
           </div>
 
@@ -111,7 +110,7 @@ export default function ReviewerQueuePage() {
               className={`btn btn-sm ${activeTab === 'ALL' ? 'btn-primary' : 'btn-ghost'}`}
               onClick={() => setActiveTab('ALL')}
             >
-              All Flags
+              All Assigned
             </button>
           </div>
         </div>
@@ -289,7 +288,7 @@ export default function ReviewerQueuePage() {
                           disabled={isProcessing}
                           onClick={() => handleReview(f.flag_id, 'Cleared')}
                         >
-                          {isProcessing ? 'Processing...' : '✓ Clear (Approve Clause)'}
+                          {isProcessing ? 'Processing...' : '✓ Clear Flag'}
                         </button>
                         <button
                           type="button"
@@ -298,7 +297,7 @@ export default function ReviewerQueuePage() {
                           disabled={isProcessing}
                           onClick={() => handleReview(f.flag_id, 'Escalated')}
                         >
-                          {isProcessing ? 'Processing...' : '⚠️ Escalate to Senior Counsel'}
+                          {isProcessing ? 'Processing...' : '⚠️ Escalate for Further Review'}
                         </button>
                       </div>
                     </div>

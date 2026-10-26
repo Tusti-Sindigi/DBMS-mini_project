@@ -1,19 +1,28 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 /**
- * Sign-up page — create a new account with role selection.
- * Roles: Client, Reviewer, LegalAdmin (Rubric #12)
+ * Public registration creates Clients. The first administrator can be
+ * bootstrapped once with the server-side setup token.
  */
 export default function SignupPage() {
   const router = useRouter();
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState('Client');
+  const [bootstrapAdminAvailable, setBootstrapAdminAvailable] = useState(false);
+  const [createInitialAdmin, setCreateInitialAdmin] = useState(false);
+  const [bootstrapToken, setBootstrapToken] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/auth/signup')
+      .then((response) => response.json())
+      .then((data) => setBootstrapAdminAvailable(Boolean(data.bootstrapAdminAvailable)))
+      .catch(() => setBootstrapAdminAvailable(false));
+  }, []);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -24,7 +33,12 @@ export default function SignupPage() {
       const res = await fetch('/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, password, role }),
+        body: JSON.stringify({
+          name,
+          password,
+          role: createInitialAdmin ? 'LegalAdmin' : 'Client',
+          ...(createInitialAdmin ? { bootstrapToken } : {}),
+        }),
       });
 
       const data = await res.json();
@@ -34,6 +48,9 @@ export default function SignupPage() {
         return;
       }
 
+      if (data.user?.role === 'LegalAdmin') {
+        setBootstrapAdminAvailable(false);
+      }
       router.push('/dashboard');
     } catch {
       setError('Network error. Please try again.');
@@ -79,18 +96,15 @@ export default function SignupPage() {
               id="signup-password"
               type="password"
               className="form-input"
-              placeholder="Minimum 6 characters"
+              placeholder="Minimum 8 characters"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              minLength={6}
+              minLength={8}
             />
           </div>
 
           <div className="form-group">
-            <label className="form-label" htmlFor="signup-role">
-              Account Type
-            </label>
             <div
               style={{
                 padding: '0.75rem 1rem',
@@ -105,12 +119,41 @@ export default function SignupPage() {
               }}
             >
               <span>👤</span>
-              <strong>Client Account</strong> (Upload & monitor contracts)
+              <strong>{createInitialAdmin ? 'Initial Legal Admin' : 'Client Account'}</strong>
+              {createInitialAdmin ? ' (Set up system access and staff)' : ' (Upload & monitor contracts)'}
             </div>
             <span className="form-hint" style={{ marginTop: '0.35rem', display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-              Public registration creates Client accounts. Reviewer & Legal Admin accounts are provisioned internally by your Legal Administrator.
+              Public registration creates Client accounts. Reviewer accounts are provisioned by a Legal Admin.
             </span>
           </div>
+
+          {bootstrapAdminAvailable && (
+            <div className="form-group">
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={createInitialAdmin}
+                  onChange={(event) => setCreateInitialAdmin(event.target.checked)}
+                />
+                Set up the initial Legal Admin account
+              </label>
+              {createInitialAdmin && (
+                <div style={{ marginTop: '0.75rem' }}>
+                  <label className="form-label" htmlFor="bootstrap-token">Initial setup token</label>
+                  <input
+                    id="bootstrap-token"
+                    type="password"
+                    className="form-input"
+                    value={bootstrapToken}
+                    onChange={(event) => setBootstrapToken(event.target.value)}
+                    autoComplete="off"
+                    required
+                  />
+                  <span className="form-hint">Use the token configured by the person running the app.</span>
+                </div>
+              )}
+            </div>
+          )}
 
           <button type="submit" className="btn btn-primary btn-lg w-full" disabled={loading}>
             {loading ? (

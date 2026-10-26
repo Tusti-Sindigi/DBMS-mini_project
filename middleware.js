@@ -13,18 +13,16 @@
 import { NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'dev-secret-change-in-production'
-);
+const DEVELOPMENT_JWT_SECRET = 'local-development-only-change-before-deploying-123456789';
 const COOKIE_NAME = 'session_token';
 
 const PUBLIC_PATHS = ['/', '/login', '/signup', '/api/auth/login', '/api/auth/signup'];
 
 // Which roles can access which page path prefixes
 const ROLE_ACCESS = {
-  '/contracts/upload': ['Client', 'LegalAdmin'],
+  '/contracts/upload': ['Client'],
   '/contracts': ['Client', 'Reviewer', 'LegalAdmin'],
-  '/reviewer': ['Reviewer', 'LegalAdmin'],
+  '/reviewer': ['Reviewer'],
   '/admin': ['LegalAdmin'],
 };
 
@@ -37,6 +35,11 @@ export async function middleware(request) {
   }
 
   // Read JWT from cookie
+  const configuredSecret = process.env.JWT_SECRET || DEVELOPMENT_JWT_SECRET;
+  if (process.env.NODE_ENV === 'production' && configuredSecret.length < 32) {
+    return NextResponse.json({ error: 'Server authentication is not configured.' }, { status: 500 });
+  }
+  const JWT_SECRET = new TextEncoder().encode(configuredSecret);
   const token = request.cookies.get(COOKIE_NAME)?.value;
   let payload = null;
 
@@ -58,6 +61,10 @@ export async function middleware(request) {
   }
 
   // Role-based page access
+  if (pathname === '/contracts' && payload.role === 'Reviewer') {
+    return NextResponse.redirect(new URL('/reviewer', request.url));
+  }
+
   for (const [pathPrefix, allowedRoles] of Object.entries(ROLE_ACCESS)) {
     if (pathname.startsWith(pathPrefix) && !allowedRoles.includes(payload.role)) {
       return NextResponse.redirect(new URL('/dashboard', request.url));

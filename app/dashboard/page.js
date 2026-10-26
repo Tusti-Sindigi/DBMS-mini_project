@@ -97,7 +97,7 @@ export default function DashboardPage() {
             </div>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
               {user.role === 'Client' && 'Upload and monitor contract risks flagged by AI semantic similarity.'}
-              {user.role === 'Reviewer' && 'Adjudicate open flags and make transactional sign-off decisions.'}
+              {user.role === 'Reviewer' && 'Review risk flags assigned to you and record a decision for each one.'}
               {user.role === 'LegalAdmin' && 'System-wide legal compliance, risk library curation, and reviewer assignment.'}
             </p>
           </div>
@@ -258,9 +258,9 @@ export default function DashboardPage() {
               <div className="card" style={{ padding: '1.5rem' }}>
                 <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600 }}>ROLE PERMISSION</div>
                 <div style={{ fontSize: '1.15rem', fontWeight: 700, marginTop: '0.5rem', color: 'var(--info)' }}>
-                  Legal Adjudicator
+                    Reviewer
                 </div>
-                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Authorized to Clear or Escalate</div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>May act on assigned flags only</div>
               </div>
             </div>
 
@@ -270,7 +270,7 @@ export default function DashboardPage() {
                 <div>
                   <h2 style={{ fontSize: '1.25rem', fontWeight: 700 }}>Active Review Queue</h2>
                   <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '0.25rem' }}>
-                    Flags assigned to you requiring transactional sign-off.
+                    Open flags assigned to you that need review.
                   </p>
                 </div>
                 <Link href="/reviewer" className="btn btn-primary btn-sm">

@@ -1,0 +1,77 @@
+CLAUSEGUARD INSTALLATION REQUIREMENTS
+====================================
+
+This project consists of a Next.js web application, a Python embedding service, and PostgreSQL with the pgvector extension.
+
+SYSTEM SOFTWARE REQUIRED
+-----------------------
+- Windows 10 or 11 with PowerShell
+- Node.js 18 or newer (includes npm)
+- Python 3.10 through 3.12 with pip
+- PostgreSQL 15 or newer with pgvector installed
+- Git
+
+The Python package list is in embedding_service/requirements.txt. The web application packages are in package.json and package-lock.json. Do not use pip to install the web packages.
+
+1. SET UP POSTGRESQL AND PGVECTOR
+---------------------------------
+Install PostgreSQL and the pgvector extension. Create a database named clauseguard, or choose another name and use it in DATABASE_URL. The PostgreSQL user running the schema must be allowed to install the vector extension.
+
+From the repository folder, run:
+
+    psql "postgresql://postgres:YOUR_PASSWORD@localhost:5432/clauseguard" -f database/schema.sql
+    psql "postgresql://postgres:YOUR_PASSWORD@localhost:5432/clauseguard" -f database/views.sql
+
+If PostgreSQL runs in Docker, use the container's mapped host port and credentials.
+
+2. CONFIGURE AND INSTALL THE WEB APPLICATION
+--------------------------------------------
+From the repository folder, run:
+
+    Copy-Item .env.example .env
+
+Edit .env. Set DATABASE_URL to your PostgreSQL connection string. Set JWT_SECRET to a private random value at least 32 characters long. Set INITIAL_ADMIN_SETUP_TOKEN to a separate private random token. Keep .env private and do not commit it. EMBEDDING_SERVICE_URL should normally be http://127.0.0.1:8001.
+
+Install and run the web application:
+
+    npm ci
+    npm run dev
+
+Open http://localhost:3000 in your browser.
+
+3. INSTALL AND START THE PYTHON EMBEDDING SERVICE
+-------------------------------------------------
+Open another PowerShell window at the repository folder. Create a virtual environment and install the Python packages:
+
+    py -3.12 -m venv .venv
+    .\.venv\Scripts\Activate.ps1
+    python -m pip install --upgrade pip
+    python -m pip install -r embedding_service/requirements.txt
+
+The first installation can take several minutes because PyTorch and sentence-transformers are large packages. On first service startup, sentence-transformers downloads the all-MiniLM-L6-v2 model.
+
+Seed the risk library after PostgreSQL is running, then start the service:
+
+    python -m embedding_service.seed_risk_library
+    python -m uvicorn embedding_service.app:app --host 127.0.0.1 --port 8001
+
+If PowerShell blocks virtual environment activation, use the virtual environment's Python directly:
+
+    .\.venv\Scripts\python.exe -m pip install -r embedding_service/requirements.txt
+    .\.venv\Scripts\python.exe -m embedding_service.seed_risk_library
+    .\.venv\Scripts\python.exe -m uvicorn embedding_service.app:app --host 127.0.0.1 --port 8001
+
+4. CREATE THE FIRST LEGAL ADMIN
+-------------------------------
+With PostgreSQL, the embedding service, and the web application running, open http://localhost:3000/signup. Select "Set up the initial Legal Admin account" and enter the INITIAL_ADMIN_SETUP_TOKEN from .env. This setup option is only available before the first Legal Admin is created. After setup, public signup creates Client accounts; the Legal Admin provisions Reviewer and additional Legal Admin accounts from the Admin dashboard.
+
+STARTING THE PROJECT AFTER INSTALLATION
+---------------------------------------
+Start PostgreSQL. In one PowerShell window, activate .venv and start the embedding service:
+
+    python -m uvicorn embedding_service.app:app --host 127.0.0.1 --port 8001
+
+In another PowerShell window at the repository folder, start the web application:
+
+    npm run dev
+

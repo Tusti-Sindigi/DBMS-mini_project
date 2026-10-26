@@ -55,8 +55,6 @@ export default function AdminDashboardPage() {
   }
 
   async function handleAssignReviewer(flagId, reviewerId) {
-    if (!reviewerId) return;
-
     try {
       setAssigningId(flagId);
       setError(null);
@@ -72,13 +70,16 @@ export default function AdminDashboardPage() {
       if (!res.ok) throw new Error(result.error || 'Assignment failed');
 
       const assignedRev = reviewers.find((r) => String(r.id) === String(reviewerId));
-      setSuccessMsg(`Flag #${flagId} assigned to ${assignedRev?.name || 'Reviewer'}`);
+      const nextReviewerId = reviewerId || null;
+      setSuccessMsg(assignedRev
+        ? `Flag #${flagId} assigned to ${assignedRev.name}.`
+        : `Flag #${flagId} unassigned.`);
 
       // Update flag row in state
       setOpenFlags((prev) =>
         prev.map((f) =>
           f.flag_id === flagId
-            ? { ...f, reviewer_id: reviewerId, reviewer_name: assignedRev?.name }
+            ? { ...f, reviewer_id: nextReviewerId, reviewer_name: assignedRev?.name || null }
             : f
         )
       );
@@ -416,7 +417,7 @@ export default function AdminDashboardPage() {
                           disabled={assigningId === f.flag_id}
                           onChange={(e) => handleAssignReviewer(f.flag_id, e.target.value)}
                         >
-                          <option value="">-- Assign Reviewer --</option>
+                          <option value="">{f.reviewer_id ? '-- Unassign Reviewer --' : '-- Assign Reviewer --'}</option>
                           {reviewers.map((r) => (
                             <option key={r.id} value={r.id}>
                               {r.name} ({r.active_queue_count} pending)
@@ -470,11 +471,11 @@ export default function AdminDashboardPage() {
                 <input
                   type="password"
                   className="input"
-                  placeholder="Minimum 6 characters"
+                  placeholder="Minimum 8 characters"
                   value={newStaffPassword}
                   onChange={(e) => setNewStaffPassword(e.target.value)}
                   required
-                  minLength={6}
+                  minLength={8}
                   style={{ fontSize: '0.85rem' }}
                 />
               </div>
@@ -504,7 +505,7 @@ export default function AdminDashboardPage() {
 
             {/* Existing Staff Table */}
             <div>
-              <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1rem', color: '#fff' }}>Active Staff Directory ({staffList.length})</h3>
+              <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1rem', color: '#fff' }}>Staff Directory ({staffList.length})</h3>
               <div className="table-responsive">
                 <table className="table">
                   <thead>
