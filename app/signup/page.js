@@ -18,11 +18,21 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    // If already authenticated, redirect straight to dashboard
+    fetch('/api/auth/me')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.user) {
+          router.replace('/dashboard');
+        }
+      })
+      .catch(() => {});
+
     fetch('/api/auth/signup')
       .then((response) => response.json())
       .then((data) => setBootstrapAdminAvailable(Boolean(data.bootstrapAdminAvailable)))
       .catch(() => setBootstrapAdminAvailable(false));
-  }, []);
+  }, [router]);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -51,7 +61,8 @@ export default function SignupPage() {
       if (data.user?.role === 'LegalAdmin') {
         setBootstrapAdminAvailable(false);
       }
-      router.push('/dashboard');
+      // Replace /signup in history so going back does not return to signup
+      router.replace('/dashboard');
     } catch {
       setError('Network error. Please try again.');
     } finally {

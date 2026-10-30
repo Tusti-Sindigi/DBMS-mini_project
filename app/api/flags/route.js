@@ -58,33 +58,47 @@ export async function GET(request) {
     WHERE 1=1
   `;
 
-  const params = [];
-  let paramIndex = 1;
+  try {
+    const params = [];
+    let paramIndex = 1;
 
-  // Role-based data scoping (Rubric #12)
-  if (user.role === 'Reviewer') {
-    // Reviewer strictly sees flags assigned to them by a Legal Admin
-    sql += ` AND f.reviewer_id = $${paramIndex}`;
-    params.push(user.id);
-    paramIndex++;
-    // Reviewers see only Open flags by default
-    if (!statusFilter) {
-      sql += ` AND f.status = 'Open'`;
+    // Role-based data scoping (Rubric #12)
+    if (user.role === 'Reviewer') {
+      // Reviewer strictly sees flags assigned to them by a Legal Admin
+      sql += ` AND f.reviewer_id = $${paramIndex}`;
+      params.push(user.id);
+      paramIndex++;
+    } else if (user.role === 'Client') {
+      // Client strictly sees flags belonging to their own contracts
+      sql += ` AND c.client_id = $${paramIndex}`;
+      params.push(user.id);
+      paramIndex++;
     }
-  } else if (user.role === 'Client') {
-    sql += ` AND c.client_id = $${paramIndex}`;
-    params.push(user.id);
-    paramIndex++;
+
+    // Status filter: 'Open', 'Cleared', 'Escalated', or 'ALL'
+    if (statusFilter && statusFilter.toUpperCase() !== 'ALL') {
+      const normalizedStatus =
+        statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1).toLowerCase();
+      const validStatuses = ['Open', 'Cleared', 'Escalated'];
+
+      if (!validStatuses.includes(normalizedStatus)) {
+        return NextResponse.json(
+          { error: `Invalid status filter. Must be one of: ${validStatuses.join(', ')}, or ALL` },
+          { status: 400 }
+        );
+      }
+
+      sql += ` AND f.status = $${paramIndex}`;
+      params.push(normalizedStatus);
+      paramIndex++;
+    }
+
+    sql += ' ORDER BY f.similarity_score DESC, f.created_at DESC';
+
+    const result = await query(sql, params);
+    return NextResponse.json({ flags: result.rows });
+  } catch (error) {
+    console.error('Error fetching flags:', error);
+    return NextResponse.json({ error: 'Failed to fetch flags' }, { status: 500 });
   }
-
-  if (statusFilter) {
-    sql += ` AND f.status = $${paramIndex}`;
-    params.push(statusFilter);
-    paramIndex++;
-  }
-
-  sql += ' ORDER BY f.similarity_score DESC, f.created_at DESC';
-
-  const result = await query(sql, params);
-  return NextResponse.json({ flags: result.rows });
 }

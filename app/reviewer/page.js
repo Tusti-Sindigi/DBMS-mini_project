@@ -22,7 +22,7 @@ export default function ReviewerQueuePage() {
       setLoading(true);
       const [meRes, flagsRes] = await Promise.all([
         fetch('/api/auth/me'),
-        fetch(`/api/flags${activeTab !== 'ALL' ? `?status=${activeTab}` : ''}`),
+        fetch(`/api/flags?status=${activeTab}`),
       ]);
 
       const meData = await meRes.json();

@@ -58,7 +58,19 @@ def segment_clauses(text: str) -> list[dict[str, str]]:
         paragraphs = [part.strip() for part in re.split(r"\n\s*\n+", normalized) if part.strip()]
         chunks = [(str(index), paragraph) for index, paragraph in enumerate(paragraphs, start=1)]
 
-    return [{"clause_number": number, "clause_text": content} for number, content in chunks]
+    # Disambiguate duplicate clause numbers to maintain uniqueness
+    seen_numbers: dict[str, int] = {}
+    unique_results: list[dict[str, str]] = []
+    for number, content in chunks:
+        if number in seen_numbers:
+            seen_numbers[number] += 1
+            unique_number = f"{number} ({seen_numbers[number]})"
+        else:
+            seen_numbers[number] = 1
+            unique_number = number
+        unique_results.append({"clause_number": unique_number, "clause_text": content})
+
+    return unique_results
 
 
 def encode_texts(texts: list[str]) -> list[list[float]]:

@@ -225,12 +225,23 @@ export async function POST(request) {
       const contractId = contractResult.rows[0].id;
 
       // INSERT each clause with its embedding vector (Rubric #9: Vector storage)
+      // Disambiguate duplicate clause numbers to prevent UNIQUE (contract_id, clause_number) violation
+      const seenClauseNumbers = new Map();
       for (const clause of clauses) {
+        let clauseNumber = String(clause.clause_number || '').trim() || '1';
+        if (seenClauseNumbers.has(clauseNumber)) {
+          const count = seenClauseNumbers.get(clauseNumber) + 1;
+          seenClauseNumbers.set(clauseNumber, count);
+          clauseNumber = `${clauseNumber} (${count})`;
+        } else {
+          seenClauseNumbers.set(clauseNumber, 1);
+        }
+
         const embeddingStr = '[' + clause.embedding.join(',') + ']';
         await client.query(
           `INSERT INTO clauses (contract_id, clause_text, clause_number, embedding)
            VALUES ($1, $2, $3, $4::vector)`,
-          [contractId, clause.clause_text, clause.clause_number, embeddingStr]
+          [contractId, clause.clause_text, clauseNumber, embeddingStr]
         );
       }
 
