@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 
 /**
@@ -7,6 +8,23 @@ import Link from 'next/link';
  * Contract Risk Flagging System for Legal Aid
  */
 export default function HomePage() {
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.user) setUser(data.user);
+      })
+      .catch(() => {});
+  }, []);
+
+  async function handleLogout() {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    setUser(null);
+    window.location.reload();
+  }
+
   return (
     <div className="landing-page" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
       {/* Top Navigation */}
@@ -40,12 +58,31 @@ export default function HomePage() {
           ClauseGuard
         </div>
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-          <Link href="/login" id="nav-login-btn" className="btn btn-ghost btn-sm">
-            Sign In
-          </Link>
-          <Link href="/signup" id="nav-signup-btn" className="btn btn-primary btn-sm">
-            Create Account
-          </Link>
+          {user ? (
+            <>
+              <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                Signed in as <strong style={{ color: '#fff' }}>{user.name}</strong>{' '}
+                <span className={`badge ${user.role === 'LegalAdmin' ? 'badge-primary' : user.role === 'Reviewer' ? 'badge-info' : 'badge-secondary'}`}>
+                  {user.role}
+                </span>
+              </div>
+              <Link href="/dashboard" id="nav-dashboard-btn" className="btn btn-primary btn-sm">
+                Dashboard →
+              </Link>
+              <button onClick={handleLogout} className="btn btn-ghost btn-sm">
+                Sign Out
+              </button>
+            </>
+          ) : (
+            <>
+              <Link href="/login" id="nav-login-btn" className="btn btn-ghost btn-sm">
+                Sign In
+              </Link>
+              <Link href="/signup" id="nav-signup-btn" className="btn btn-primary btn-sm">
+                Create Account
+              </Link>
+            </>
+          )}
         </div>
       </header>
 
@@ -100,22 +137,35 @@ export default function HomePage() {
           </p>
 
           <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-            <Link
-              href="/signup"
-              id="hero-get-started-btn"
-              className="btn btn-primary btn-lg"
-              style={{ padding: '0.875rem 2rem', fontSize: '1rem', fontWeight: 600 }}
-            >
-              Get Started Now →
-            </Link>
-            <Link
-              href="/login"
-              id="hero-demo-login-btn"
-              className="btn btn-secondary btn-lg"
-              style={{ padding: '0.875rem 2rem', fontSize: '1rem' }}
-            >
-              Sign In to Existing Account
-            </Link>
+            {user ? (
+              <Link
+                href="/dashboard"
+                id="hero-dashboard-btn"
+                className="btn btn-primary btn-lg"
+                style={{ padding: '0.875rem 2.25rem', fontSize: '1rem', fontWeight: 600 }}
+              >
+                Go to Your {user.role} Dashboard →
+              </Link>
+            ) : (
+              <>
+                <Link
+                  href="/signup"
+                  id="hero-get-started-btn"
+                  className="btn btn-primary btn-lg"
+                  style={{ padding: '0.875rem 2rem', fontSize: '1rem', fontWeight: 600 }}
+                >
+                  Get Started Now →
+                </Link>
+                <Link
+                  href="/login"
+                  id="hero-demo-login-btn"
+                  className="btn btn-secondary btn-lg"
+                  style={{ padding: '0.875rem 2rem', fontSize: '1rem' }}
+                >
+                  Sign In to Existing Account
+                </Link>
+              </>
+            )}
           </div>
         </div>
 
@@ -308,19 +358,28 @@ export default function HomePage() {
           }}
         >
           <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '0.75rem', color: '#fff' }}>
-            Ready to test the system?
+            {user ? `Active Workspace: ${user.name} (${user.role})` : 'Ready to test the system?'}
           </h3>
           <p style={{ color: 'var(--text-secondary)', maxWidth: '650px', margin: '0 auto 1.5rem auto', fontSize: '0.95rem' }}>
-            Sign up with your preferred role to test the custom experience: upload contracts as a Client, review flagged clauses
-            in the Reviewer queue, or manage organization compliance as Legal Admin.
+            {user
+              ? 'You are actively logged in. Access your role-tailored dashboard to manage contracts, review flags, or audit compliance.'
+              : 'Sign up with your preferred role to test the custom experience: upload contracts as a Client, review flagged clauses in the Reviewer queue, or manage organization compliance as Legal Admin.'}
           </p>
           <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
-            <Link href="/signup" className="btn btn-primary">
-              Register New Account
-            </Link>
-            <Link href="/login" className="btn btn-secondary">
-              Login Now
-            </Link>
+            {user ? (
+              <Link href="/dashboard" className="btn btn-primary" style={{ padding: '0.75rem 2rem' }}>
+                Open Dashboard →
+              </Link>
+            ) : (
+              <>
+                <Link href="/signup" className="btn btn-primary">
+                  Register New Account
+                </Link>
+                <Link href="/login" className="btn btn-secondary">
+                  Login Now
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </main>

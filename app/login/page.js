@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 /**
@@ -13,6 +13,18 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    // If already authenticated, redirect straight to dashboard
+    fetch('/api/auth/me')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.user) {
+          router.replace('/dashboard');
+        }
+      })
+      .catch(() => {});
+  }, [router]);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -33,7 +45,8 @@ export default function LoginPage() {
         return;
       }
 
-      router.push('/dashboard');
+      // Replace /login in history so going back does not return to login
+      router.replace('/dashboard');
     } catch {
       setError('Network error. Please try again.');
     } finally {

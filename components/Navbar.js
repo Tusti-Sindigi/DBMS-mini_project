@@ -23,7 +23,7 @@ export default function Navbar() {
 
   async function handleLogout() {
     await fetch('/api/auth/logout', { method: 'POST' });
-    router.push('/login');
+    window.location.href = '/login';
   }
 
   if (!user) return null;
@@ -55,10 +55,10 @@ export default function Navbar() {
 
   return (
     <nav className="navbar">
-      <div className="navbar-brand">
+      <a href="/dashboard" className="navbar-brand" style={{ textDecoration: 'none', color: 'inherit' }}>
         <div className="navbar-brand-icon">⚖</div>
         ClauseGuard
-      </div>
+      </a>
 
       <div className="navbar-links">
         {links.map((link) => (
