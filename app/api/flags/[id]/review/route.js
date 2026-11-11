@@ -70,18 +70,13 @@ export async function POST(request, { params }) {
         error.code = 'FLAG_ALREADY_CLOSED';
         throw error;
       }
-      if (String(flag.reviewer_id) !== String(user.id)) {
-        const error = new Error(flag.reviewer_id ? 'NOT_ASSIGNED' : 'NOT_ASSIGNED_YET');
-        error.code = flag.reviewer_id ? 'NOT_ASSIGNED' : 'NOT_ASSIGNED_YET';
-        throw error;
-      }
 
       const updateResult = await client.query(
         `UPDATE flags
-         SET status = $1
-         WHERE id = $2 AND status = 'Open'
-         RETURNING id, status`,
-        [action, flagId]
+         SET status = $1, reviewer_id = $2
+         WHERE id = $3 AND status = 'Open'
+         RETURNING id, status, reviewer_id`,
+        [action, user.id, flagId]
       );
 
       // Guard against race condition — another reviewer already processed it

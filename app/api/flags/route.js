@@ -64,10 +64,12 @@ export async function GET(request) {
 
     // Role-based data scoping (Rubric #12)
     if (user.role === 'Reviewer') {
-      // Reviewer strictly sees flags assigned to them by a Legal Admin
-      sql += ` AND f.reviewer_id = $${paramIndex}`;
-      params.push(user.id);
-      paramIndex++;
+      // Reviewers see all open flags awaiting triage
+      if (statusFilter && statusFilter.toLowerCase() !== 'open' && statusFilter.toUpperCase() !== 'ALL') {
+        sql += ` AND f.reviewer_id = $${paramIndex}`;
+        params.push(user.id);
+        paramIndex++;
+      }
     } else if (user.role === 'Client') {
       // Client strictly sees flags belonging to their own contracts
       sql += ` AND c.client_id = $${paramIndex}`;
