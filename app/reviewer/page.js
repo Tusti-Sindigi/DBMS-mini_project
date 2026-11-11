@@ -83,7 +83,7 @@ export default function ReviewerQueuePage() {
               <span className="badge badge-info">{user?.role || 'Reviewer'}</span>
             </div>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
-              Review only flags assigned to you. Each decision is recorded in the review history.
+              Review and triage open flags. Each decision is recorded in the immutable review history.
             </p>
           </div>
 
