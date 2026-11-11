@@ -130,6 +130,7 @@ $$;
 CREATE OR REPLACE FUNCTION flag_clause_when_risky()
 RETURNS TRIGGER
 LANGUAGE plpgsql
+SECURITY DEFINER
 AS $$
 DECLARE
     best_match RECORD;
@@ -174,3 +175,109 @@ CREATE TRIGGER trg_flag_clause_when_risky
 AFTER INSERT OR UPDATE OF embedding ON clauses
 FOR EACH ROW
 EXECUTE FUNCTION flag_clause_when_risky();
+
+-- Security Views
+CREATE OR REPLACE VIEW client_contracts_view AS
+SELECT id, file_name, upload_date, status, client_id
+FROM contracts;
+
+CREATE OR REPLACE VIEW reviewer_open_flags_view AS
+SELECT 
+    f.id AS flag_id,
+    f.clause_id,
+    cl.clause_number,
+    cl.clause_text,
+    c.file_name AS contract_file,
+    rl.risk_category,
+    rl.severity_weight,
+    f.similarity_score,
+    f.status,
+    f.created_at
+FROM flags f
+JOIN clauses cl ON cl.id = f.clause_id
+JOIN contracts c ON c.id = cl.contract_id
+JOIN risk_library rl ON rl.id = f.risk_library_id
+WHERE f.status = 'Open';
+
+CREATE OR REPLACE VIEW admin_system_users_view AS
+SELECT id, name, role, created_at
+FROM users;
+
+CREATE OR REPLACE VIEW unresolved_flags_by_client AS
+WITH client_flags AS (
+    SELECT
+        c.client_id,
+        COUNT(f.id) AS open_flag_count,
+        ROUND(AVG(f.similarity_score)::NUMERIC, 4) AS avg_similarity_score,
+        ROUND(AVG(GREATEST(f.similarity_score, 0) * rl.severity_weight / 5.0 * 100)::NUMERIC, 2) AS avg_risk_score,
+        MAX(f.created_at) AS latest_flag_date
+    FROM flags f
+    JOIN clauses cl ON cl.id = f.clause_id
+    JOIN contracts c ON c.id = cl.contract_id
+    JOIN risk_library rl ON rl.id = f.risk_library_id
+    WHERE f.status = 'Open'
+    GROUP BY c.client_id
+),
+client_contracts AS (
+    SELECT client_id, COUNT(id) AS total_contracts
+    FROM contracts
+    GROUP BY client_id
+)
+SELECT
+    u.id AS client_id,
+    u.name AS client_name,
+    COALESCE(cc.total_contracts, 0) AS total_contracts,
+    COALESCE(cf.open_flag_count, 0) AS open_flag_count,
+    cf.avg_similarity_score,
+    cf.avg_risk_score,
+    cf.latest_flag_date
+FROM users u
+LEFT JOIN client_contracts cc ON cc.client_id = u.id
+LEFT JOIN client_flags cf ON cf.client_id = u.id
+WHERE u.role = 'Client';
+
+-- Roles and RBAC Privileges
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'role_client') THEN
+        CREATE ROLE role_client WITH NOLOGIN;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'role_reviewer') THEN
+        CREATE ROLE role_reviewer WITH NOLOGIN;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'role_legal_admin') THEN
+        CREATE ROLE role_legal_admin WITH NOLOGIN;
+    END IF;
+END $$;
+
+GRANT role_client, role_reviewer, role_legal_admin TO postgres;
+
+GRANT USAGE ON SCHEMA public TO role_client, role_reviewer, role_legal_admin;
+
+GRANT SELECT, INSERT ON contracts TO role_client;
+GRANT SELECT, INSERT ON clauses TO role_client;
+GRANT SELECT ON flags TO role_client;
+GRANT SELECT ON risk_library TO role_client;
+GRANT SELECT ON risk_config TO role_client;
+GRANT SELECT (id, name, role, created_at) ON users TO role_client;
+REVOKE ALL ON review_history FROM role_client;
+
+GRANT SELECT ON contracts, clauses, risk_library, risk_config TO role_reviewer;
+GRANT SELECT, UPDATE ON flags TO role_reviewer;
+GRANT SELECT, INSERT ON review_history TO role_reviewer;
+GRANT SELECT (id, name, role, created_at) ON users TO role_reviewer;
+
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO role_legal_admin;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO role_legal_admin;
+GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public TO role_legal_admin;
+
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO role_client, role_reviewer;
+
+GRANT EXECUTE ON FUNCTION find_similar_risks(BIGINT, INTEGER) TO role_client, role_reviewer, role_legal_admin;
+GRANT EXECUTE ON FUNCTION calculate_risk_score(BIGINT) TO role_client, role_reviewer, role_legal_admin;
+
+GRANT SELECT ON client_contracts_view TO role_client, role_legal_admin;
+GRANT SELECT ON reviewer_open_flags_view TO role_reviewer, role_legal_admin;
+GRANT SELECT ON admin_system_users_view TO role_legal_admin, role_reviewer;
+GRANT SELECT ON unresolved_flags_by_client TO role_reviewer, role_legal_admin;
+

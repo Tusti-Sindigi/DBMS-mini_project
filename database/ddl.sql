@@ -281,6 +281,7 @@ COMMENT ON FUNCTION calculate_risk_score IS 'Calculates 0-100 normalized risk sc
 CREATE OR REPLACE FUNCTION flag_clause_when_risky()
 RETURNS TRIGGER
 LANGUAGE plpgsql
+SECURITY DEFINER
 AS $$
 DECLARE
     best_match RECORD;
@@ -374,4 +375,122 @@ LEFT JOIN client_flags cf     ON cf.client_id = u.id
 WHERE u.role = 'Client';
 
 COMMENT ON VIEW unresolved_flags_by_client IS 'Analytical CTE view aggregating open flags, average risk, and total contracts per client';
+
+
+-- ============================================================================
+-- Security View 1: client_contracts_view
+-- Description: Restricts client contract access to non-sensitive columns
+--              (omitting uploader IDs and internal account linkages).
+-- ============================================================================
+CREATE OR REPLACE VIEW client_contracts_view AS
+SELECT 
+    id, 
+    file_name, 
+    upload_date, 
+    status, 
+    client_id
+FROM contracts;
+
+COMMENT ON VIEW client_contracts_view IS 'Security view restricting client contract access to non-sensitive columns';
+
+
+-- ============================================================================
+-- Security View 2: reviewer_open_flags_view
+-- Description: Pre-joined operational view providing reviewers with full
+--              context to triage open flags without browsing raw tables.
+-- ============================================================================
+CREATE OR REPLACE VIEW reviewer_open_flags_view AS
+SELECT 
+    f.id AS flag_id,
+    f.clause_id,
+    cl.clause_number,
+    cl.clause_text,
+    c.file_name AS contract_file,
+    rl.risk_category,
+    rl.severity_weight,
+    f.similarity_score,
+    f.status,
+    f.created_at
+FROM flags f
+JOIN clauses cl ON cl.id = f.clause_id
+JOIN contracts c ON c.id = cl.contract_id
+JOIN risk_library rl ON rl.id = f.risk_library_id
+WHERE f.status = 'Open';
+
+COMMENT ON VIEW reviewer_open_flags_view IS 'Role-based operational view showing only open flags requiring reviewer triage with joined context';
+
+
+-- ============================================================================
+-- Security View 3: admin_system_users_view
+-- Description: Conceals password_hash column while exposing necessary account
+--              profile details for administration.
+-- ============================================================================
+CREATE OR REPLACE VIEW admin_system_users_view AS
+SELECT 
+    id, 
+    name, 
+    role, 
+    created_at
+FROM users;
+
+COMMENT ON VIEW admin_system_users_view IS 'Security view exposing user accounts while strictly concealing sensitive password_hash';
+
+
+-- ----------------------------------------------------------------------------
+-- 6. ROLES & ACCESS CONTROL (Unit 2: Views and Users / Roles)
+-- ----------------------------------------------------------------------------
+
+-- Role: role_client
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'role_client') THEN
+        CREATE ROLE role_client WITH NOLOGIN;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'role_reviewer') THEN
+        CREATE ROLE role_reviewer WITH NOLOGIN;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'role_legal_admin') THEN
+        CREATE ROLE role_legal_admin WITH NOLOGIN;
+    END IF;
+END $$;
+
+-- Allow superuser/connecting user 'postgres' to switch roles via SET ROLE
+GRANT role_client, role_reviewer, role_legal_admin TO postgres;
+
+-- Schema usage
+GRANT USAGE ON SCHEMA public TO role_client, role_reviewer, role_legal_admin;
+
+-- Table privileges for role_client
+GRANT SELECT, INSERT ON contracts TO role_client;
+GRANT SELECT, INSERT ON clauses TO role_client;
+GRANT SELECT ON flags TO role_client;
+GRANT SELECT ON risk_library TO role_client;
+GRANT SELECT ON risk_config TO role_client;
+GRANT SELECT (id, name, role, created_at) ON users TO role_client;
+REVOKE ALL ON review_history FROM role_client;
+
+-- Table privileges for role_reviewer
+GRANT SELECT ON contracts, clauses, risk_library, risk_config TO role_reviewer;
+GRANT SELECT, UPDATE ON flags TO role_reviewer;
+GRANT SELECT, INSERT ON review_history TO role_reviewer;
+GRANT SELECT (id, name, role, created_at) ON users TO role_reviewer;
+
+-- Table privileges for role_legal_admin
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO role_legal_admin;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO role_legal_admin;
+GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public TO role_legal_admin;
+
+-- Sequence usage for identity generation
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO role_client, role_reviewer;
+
+-- Function execute privileges
+GRANT EXECUTE ON FUNCTION find_similar_risks(BIGINT, INTEGER) TO role_client, role_reviewer, role_legal_admin;
+GRANT EXECUTE ON FUNCTION calculate_risk_score(BIGINT) TO role_client, role_reviewer, role_legal_admin;
+
+-- View access permissions
+GRANT SELECT ON client_contracts_view TO role_client, role_legal_admin;
+GRANT SELECT ON reviewer_open_flags_view TO role_reviewer, role_legal_admin;
+GRANT SELECT ON admin_system_users_view TO role_legal_admin, role_reviewer;
+GRANT SELECT ON unresolved_flags_by_client TO role_reviewer, role_legal_admin;
+
 
