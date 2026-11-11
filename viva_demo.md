@@ -319,3 +319,150 @@ SELECT
     latest_flag_date
 FROM unresolved_flags_by_client;
 ```
+
+---
+
+## 8. Role-Based Access Control (RBAC) & Security Views (Unit 2: Views and Roles)
+
+### 8.1 View All Active Database Roles
+Queries PostgreSQL catalog to inspect the created project roles and their attributes.
+
+```sql
+SELECT rolname, rolsuper, rolinherit, rolcreaterole
+FROM pg_roles
+WHERE rolname IN ('postgres', 'role_client', 'role_reviewer', 'role_legal_admin')
+ORDER BY rolname;
+```
+
+---
+
+### 8.2 Client Role (`role_client`): Allowed vs. Denied Access
+Switches session to `role_client`. Allowed to query contracts and clauses; blocked with permission denied when querying reviewer audit logs.
+
+```sql
+-- Step 1: Switch session to Client role
+SET ROLE role_client;
+
+-- Step 2: Allowed operation (Query contracts)
+SELECT id, file_name, status FROM contracts LIMIT 3;
+
+-- Step 3: Denied operation (Query review history audit logs) -> Raises ERROR: permission denied
+SELECT * FROM review_history;
+
+-- Step 4: Reset session back to default superuser
+RESET ROLE;
+```
+
+---
+
+### 8.3 Reviewer Role (`role_reviewer`): Allowed vs. Denied Access
+Switches session to `role_reviewer`. Allowed to read review history and open flags; blocked when attempting to insert contracts.
+
+```sql
+-- Step 1: Switch session to Reviewer role
+SET ROLE role_reviewer;
+
+-- Step 2: Allowed operation (Query review history audit logs)
+SELECT id, flag_id, action, reviewer_id FROM review_history LIMIT 3;
+
+-- Step 3: Allowed operation (Query open flags operational view)
+SELECT flag_id, clause_number, risk_category, similarity_score 
+FROM reviewer_open_flags_view 
+LIMIT 3;
+
+-- Step 4: Denied operation (Insert contract record) -> Raises ERROR: permission denied
+INSERT INTO contracts (uploaded_by, client_id, file_name)
+VALUES (1, 1, 'unauthorized_upload.pdf');
+
+-- Step 5: Reset session back to default superuser
+RESET ROLE;
+```
+
+---
+
+### 8.4 Legal Admin Role (`role_legal_admin`): Full Privileges
+Switches session to `role_legal_admin`. Has full SELECT, INSERT, UPDATE, DELETE permissions across all schema objects.
+
+```sql
+-- Step 1: Switch session to Legal Admin role
+SET ROLE role_legal_admin;
+
+-- Step 2: Allowed operations across all tables & config
+SELECT id, similarity_threshold FROM risk_config;
+SELECT COUNT(*) AS total_review_logs FROM review_history;
+
+-- Step 3: Reset session back to default superuser
+RESET ROLE;
+```
+
+---
+
+### 8.5 Security Views (Views as Authorization Mechanism)
+Demonstrates restricting access to sensitive columns and row subsets using views.
+
+#### 1. Client Security View (`client_contracts_view`)
+Hides internal uploader foreign keys and internal account linkages from clients.
+
+```sql
+SET ROLE role_client;
+SELECT id, file_name, upload_date, status FROM client_contracts_view;
+RESET ROLE;
+```
+
+#### 2. Reviewer Operational View (`reviewer_open_flags_view`)
+Pre-joins open flags with clauses, contracts, and risk categories for rapid triage.
+
+```sql
+SET ROLE role_reviewer;
+SELECT flag_id, contract_file, clause_number, risk_category, similarity_score 
+FROM reviewer_open_flags_view;
+RESET ROLE;
+```
+
+#### 3. System Users Security View (`admin_system_users_view`)
+Exposes user accounts for administration while strictly concealing `password_hash`.
+
+```sql
+SELECT id, name, role, created_at FROM admin_system_users_view;
+```
+
+---
+
+### 8.6 Column-Level Privileges: Sensitive Password Protection
+Demonstrates PostgreSQL column-level security: `role_client` can read username and role, but querying `password_hash` raises permission denied.
+
+```sql
+SET ROLE role_client;
+
+-- Allowed: Read public account metadata
+SELECT id, name, role FROM users LIMIT 2;
+
+-- Denied: Attempt to access sensitive password hash column -> Raises ERROR: permission denied
+SELECT password_hash FROM users;
+
+RESET ROLE;
+```
+
+---
+
+### 8.7 Revoke and Re-Grant Privileges
+Demonstrates dynamic SQL privilege revocation and re-granting as per syllabus.
+
+```sql
+-- Step 1: Revoke SELECT on risk_library from role_client
+REVOKE SELECT ON risk_library FROM role_client;
+
+-- Step 2: Verify revocation (Raises ERROR: permission denied)
+SET ROLE role_client;
+SELECT * FROM risk_library LIMIT 1;
+RESET ROLE;
+
+-- Step 3: Re-grant privilege to restore standard access
+GRANT SELECT ON risk_library TO role_client;
+
+-- Step 4: Verify restored access
+SET ROLE role_client;
+SELECT id, risk_category FROM risk_library LIMIT 1;
+RESET ROLE;
+```
+
